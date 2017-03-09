@@ -1,0 +1,56 @@
+virtual MTAPIRES  HookTradeRequestProcess(const IMTRequest*   request,
+                                             const IMTConfirm*   confirm,
+                                             const IMTConGroup*  group,
+                                             const IMTConSymbol* symbol,
+                                             IMTPosition*        position,
+                                             IMTOrder*           order,
+											 IMTDeal*            deal)
+{
+	....
+	
+	if ( NULL != order ) {	
+		DumpIMTOrder(L"DumpIMTOrder",order,NULL);
+		
+		if ((request->Action() == IMTRequest::TA_ACTIVATE) && 
+			(request->Type() > 1))
+		{
+			BOOL ret = MyAdditionalCheck(request,position,order,deal);
+			
+			if ( ret != true ) 
+			{
+				//return MT_RET_REQUEST_NO_MONEY; 		// if return here, pending order still there.
+			
+				// ***. send a new request to cancel this pending order.
+				IMTRequest* request0 = NULL;							
+				request0 = m_api->TradeRequestCreate();
+				if(request0 == NULL) 
+				{
+					return MT_RET_REQUEST_NO_MONEY;
+				}
+
+				request0->Clear();
+				request0->Login(order->Login());
+				request0->Action(IMTRequest::TA_DEALER_ORD_REMOVE);
+				request0->Order(order->Order());
+				request0->Symbol(order->Symbol());
+				request0->Type(order->Type());
+				request0->Comment(L"no enough money.");
+				MTAPIRES res0 = m_api->TradeRequest(request0);
+				if(res0 != MT_RET_OK)
+				{
+					LogInfo(_T("CancelPendingOrders: FAILED to TradeRequest() . res=%d login=%I64d  sym=%s vol=%I64d \r\n"),
+							res0, order->Login(), order->Symbol(), order->VolumeCurrent());
+				}
+
+				if(request0 != NULL)	request0->Release();
+
+				return MT_RET_REQUEST_NO_MONEY;
+				// ***.
+			}
+		}
+		
+		return MT_RET_OK;
+	}
+
+	....
+}
